@@ -1,0 +1,101 @@
+import sys
+import subprocess
+
+# --- AUTO-INSTALLER SECTION ---
+# This ensures that even if your environment is split, the script fixes itself.
+def install_missing(package, import_name):
+    try:
+        __import__(import_name)
+    except ImportError:
+        print(f"Installing {package}...")
+        subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+
+# Check and install all necessary advanced libraries
+install_missing('imbalanced-learn', 'imblearn')
+install_missing('xgboost', 'xgboost')
+install_missing('shap', 'shap')
+install_missing('scikit-learn', 'sklearn')
+
+# --- MAIN PROJECT CODE ---
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Algorithm Imports
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.cluster import KMeans
+from sklearn.metrics import classification_report, roc_auc_score
+from imblearn.over_sampling import SMOTE
+from xgboost import XGBClassifier
+import shap
+
+# 1. LOAD DATA
+path = r"C:\Users\rupri\Downloads\WA_Fn-UseC_-HR-Employee-Attrition.csv"
+df = pd.read_csv(path)
+
+# 2. DATA CLEANING
+# Dropping non-predictive features
+df.drop(['EmployeeCount', 'Over18', 'StandardHours', 'EmployeeNumber'], axis=1, inplace=True)
+
+# 3. K-MEANS CLUSTERING (Employee Segmentation)
+# Let's group employees into 3 personas based on experience and pay
+scaler = StandardScaler()
+cluster_features = ['Age', 'MonthlyIncome', 'TotalWorkingYears']
+df_scaled = scaler.fit_transform(df[cluster_features])
+
+kmeans = KMeans(n_clusters=3, random_state=42, n_init=10)
+df['Employee_Persona'] = kmeans.fit_predict(df_scaled)
+df['Employee_Persona'] = df['Employee_Persona'].map({0: 'Junior', 1: 'Senior', 2: 'Mid-Level'})
+
+
+
+# 4. PREPROCESSING FOR XGBOOST
+# Convert Target 'Attrition' to 1 (Yes) or 0 (No)
+df['Attrition_Target'] = df['Attrition'].apply(lambda x: 1 if x == 'Yes' else 0)
+
+# Encode all string/categorical columns
+le = LabelEncoder()
+for col in df.select_dtypes(include=['object']).columns:
+    df[col] = le.fit_transform(df[col])
+
+# Prepare X and y
+X = df.drop(['Attrition', 'Attrition_Target'], axis=1)
+y = df['Attrition_Target']
+
+# 5. HANDLE CLASS IMBALANCE (SMOTE)
+smote = SMOTE(random_state=42)
+X_res, y_res = smote.fit_resample(X, y)
+
+# 6. TRAIN XGBOOST MODEL
+X_train, X_test, y_train, y_test = train_test_split(X_res, y_res, test_size=0.2, random_state=42)
+
+xgb_model = XGBClassifier(n_estimators=100, learning_rate=0.1, max_depth=5, random_state=42)
+xgb_model.fit(X_train, y_train)
+
+
+
+# 7. MODEL EVALUATION
+y_pred = xgb_model.predict(X_test)
+print("\n--- XGBoost Model Performance ---")
+print(classification_report(y_test, y_pred))
+print(f"ROC-AUC Score: {roc_auc_score(y_test, xgb_model.predict_proba(X_test)[:, 1]):.2f}")
+
+# 8. SHAP ANALYSIS (Explainability)
+# This provides the "Why" behind the predictions
+explainer = shap.TreeExplainer(xgb_model)
+shap_values = explainer.shap_values(X_test)
+print("\nClose the plot window to continue saving the data...")
+shap.summary_plot(shap_values, X_test, show=True)
+
+
+
+# 9. OUTPUT RESULTS FOR POWER BI
+# Probability of leaving (Flight Risk Score)
+df['Flight_Risk_Score'] = xgb_model.predict_proba(X)[:, 1]
+
+# Save final CSV
+output_path = "HR_Final_Analysis_Results.csv"
+df.to_csv(output_path, index=False)
+print(f"\nSUCCESS: Data saved to {output_path}")
