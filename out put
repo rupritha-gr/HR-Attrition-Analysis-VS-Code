@@ -1,0 +1,30 @@
+Classification Report:
+               precision    recall  f1-score   support
+
+           0       0.88      1.00      0.94       255
+           1       0.83      0.13      0.22        39
+
+    accuracy                           0.88       294
+   macro avg       0.86      0.56      0.58       294
+weighted avg       0.88      0.88      0.84       294
+
+
+Top 5 Factors Driving Attrition:
+MonthlyIncome        0.078212
+OverTime             0.066669
+Age                  0.061569
+DailyRate            0.054087
+TotalWorkingYears    0.052491
+dtype: float64
+
+XGBoost Model Performance ---
+              precision    recall  f1-score   support
+
+           0       0.91      0.93      0.92       250
+           1       0.92      0.90      0.91       244
+
+    accuracy                           0.91       494
+   macro avg       0.92      0.91      0.91       494
+weighted avg       0.92      0.91      0.91       494
+
+ROC-AUC Score: 0.96
